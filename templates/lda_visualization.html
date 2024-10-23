@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/bmabey/pyLDAvis@3.4.0/pyLDAvis/js/ldavis.v1.0.0.css">
+    <title>LDA Visualization</title>
+</head>
+<body>
+    <div id="lda-vis-container" style="background-color:white;"></div>
+    
+    <script type="text/javascript">
+        var lda_data = {{ lda_data | safe }};  // FastAPI로부터 전달된 JSON 데이터
+        
+        function LDAvis_load_lib(url, callback){
+          var s = document.createElement('script');
+          s.src = url;
+          s.async = true;
+          s.onreadystatechange = s.onload = callback;
+          s.onerror = function(){console.warn("failed to load library " + url);};
+          document.getElementsByTagName("head")[0].appendChild(s);
+        }
+
+        if(typeof(LDAvis) !== "undefined"){
+           new LDAvis("#lda-vis-container", lda_data);
+        } else if(typeof define === "function" && define.amd){
+           require.config({paths: {d3: "https://d3js.org/d3.v5"}});
+           require(["d3"], function(d3){
+              window.d3 = d3;
+              LDAvis_load_lib("https://cdn.jsdelivr.net/gh/bmabey/pyLDAvis@3.4.0/pyLDAvis/js/ldavis.v3.0.0.js", function(){
+                new LDAvis("#lda-vis-container", lda_data);
+              });
+            });
+        } else {
+            LDAvis_load_lib("https://d3js.org/d3.v5.js", function(){
+                 LDAvis_load_lib("https://cdn.jsdelivr.net/gh/bmabey/pyLDAvis@3.4.0/pyLDAvis/js/ldavis.v3.0.0.js", function(){
+                     new LDAvis("#lda-vis-container", lda_data);
+                })
+             });
+        }
+    </script>
+</body>
+</html>
