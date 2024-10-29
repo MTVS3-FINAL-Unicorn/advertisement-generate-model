@@ -1,7 +1,7 @@
 import os
 from uuid import uuid4
 import base64
-from AnalyzeMeeting.model import TopicModel
+from AnalyzeMeeting.lda_model import TopicModel
 from AnalyzeMeeting.stt import stt
 from AnalyzeMeeting.text_organize import remove_stopwords, tokenize_text
 from dotenv import load_dotenv
@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from utils.upload_s3 import upload_file_to_s3
+from AnalyzeMeeting.embedding_vector_model import EmbeddingVectorModel
 
 # 환경변수 로드
 load_dotenv()
@@ -17,6 +18,9 @@ load_dotenv()
 # FastAPI와 템플릿 설정
 app = FastAPI()
 templates = Jinja2Templates(directory="./templates")
+
+# embedding_model 생성
+embedding_vector_model = EmbeddingVectorModel()
 
 # 토큰 저장소
 tokens = {}
@@ -78,22 +82,31 @@ async def analyze_responses(response: AnalyzeResponse):
     try:
         topic_model = TopicModel(tokens[response.corpId][response.meetingId], response.corpId, response.meetingId)
         json_result = topic_model.make_lda_json()
+        
+        embedding_vector_model.make_embeddings(tokens[response.corpId][response.meetingId], response.corpId, response.meetingId)
+        embedding_vector_model.make_checkpoint()
+        embedding_vector_model.run_tensorboard('0.0.0.0', '7779')
         return json_result
     except KeyError:
-        raise HTTPException(status_code=400, detail="No data found for the given corpId and meetingId.")
+        if response.corpId not in tokens:
+            raise HTTPException(status_code=404, detail="corpId에 해당하는 데이터가 존재하지 않습니다.")
+        elif response.meetingId not in tokens[response.corpId]:
+            raise HTTPException(status_code=404, detail='meetingId에 해당하는 데이터가 존재하지 않습니다.')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"error: {e}")
 
 # FastAPI로 HTML 파일을 서빙
 @app.get("/index.html", response_class=HTMLResponse)
 async def serve_html():
     try:
-        with open("./lda_visualization.html", "r") as f:
+        with open("./index.html", "r") as f:
             html_content = f.read()
         return HTMLResponse(content=html_content, status_code=200)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="HTML file not found.")
 
 # LDA 시각화 처리 엔드포인트
-@app.post("/lda_visualization")
+@app.post("/lda-visualization")
 async def lda_visualization(request: Request, response: AnalyzeResponse):
     try:
         topic_model = TopicModel(tokens[response.corpId][response.meetingId], response.corpId, response.meetingId)
@@ -105,7 +118,7 @@ async def lda_visualization(request: Request, response: AnalyzeResponse):
             "lda_data": json_result
         })
     except KeyError:
-        raise HTTPException(status_code=400, detail="No data found for the given corpId and meetingId.")
+        raise HTTPException(status_code=404, detail="No data found for the given corpId and meetingId.")
 
 # Video Ad 생성 요청에 필요한 이미지 파일과 프롬프트 받기
 @app.post("/generate-videoad")
@@ -133,4 +146,31 @@ async def generate_videoad(
         # 실행 결과 확인
         return {"result": file_url}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Error uploading image to S3: {e}')
+        raise HTTPException(status_code=400, detail=f'Error: {e}')
+
+@app.post("generate-background")
+async def generate_background(
+    image: UploadFile = File(...),
+    prompt: str = Form(...),
+    corpId: int = Form(...),
+    type: str = Form(...)
+):
+    AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION")
+    try:
+        # 이미지 파일 저장 경로 설정
+        image_path = f"/tmp/{image.filename}"
+
+        # 이미지 파일을 저장
+        with open(image_path, "wb") as buffer:
+            buffer.write(await image.read())
+
+        # S3 버킷에 업로드
+        bucket = 'jurassic-park'
+        key = str(uuid4()) + '.jpg'
+        file_url = f"https://{bucket}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/{key}"
+        await upload_file_to_s3(image_path, key)
+
+        # 실행 결과 확인
+        return {"result": file_url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error: {e}')
