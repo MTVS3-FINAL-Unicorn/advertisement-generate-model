@@ -1,92 +1,71 @@
-import os
 from uuid import uuid4
-import base64
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from utils.upload_s3 import upload_file_to_s3
-# from comfyApi.epicrealizm_img2img_api import make_image
-# from comfyApi.cogvideo_img2vid_api import make_video
-from comfyUIApi import make_advertise
+from utils.upload_s3 import post_advertise_video, post_advertise_preview
+from comfyApi.img2vid import make_video
+from comfyApi.img2img import make_image
+from utils.get_s3 import download_image_from_url
+from fastapi import FastAPI
 import logging
 
+
 logging.basicConfig(
-    filename='app.log',        # 로그 파일 이름
-    filemode='a',               # 'a'는 기존 파일에 추가, 'w'는 파일을 덮어쓰기
-    level=logging.INFO,         # 로그 레벨 설정
+    filename='app.log',
+    filemode='a',
+    level=logging.INFO,
     encoding='utf-8-sig',
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# FastAPI와 템플릿 설정
-app = FastAPI(    
+
+# FastAPI 앱 초기화
+app = FastAPI(
     title="광고 생성 API 문서",
     description="영상 광고 생성 기능",
-    version="1.0.0"
-    )
+    version="1.0"
+)
 
-# Video Ad 생성 요청에 필요한 이미지 파일과 프롬프트 받기
+
+# 광고 생성 요청
+class GenerateVideoIn(BaseModel):
+    image: str
+    prompt: str
+    adId: int
+
+
 @app.post("/generate-videoad")
-async def generate_videoad(
-    image: UploadFile = File(...),
-    prompt: str = Form(...),
-    corpId: int = Form(...),
-    ratioType: str = Form(...)
-):   
+async def generate_videoad(response: GenerateVideoIn):
     # try:
-    logging.info(f"/generate-videoad : {image, prompt, corpId, ratioType}")
-    AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION")
-    # 이미지 파일 저장 경로 설정
-    image_path = f"/home/metaai1/jinjoo_work/unicorn/ComfyUI/input/{str(uuid4())}"
+    # 요청 데이터 가져오기
+    image_url, prompt, ad_id = response.image, response.prompt, response.adId
 
-    # 이미지 파일을 저장
-    with open(image_path, "wb") as buffer:
-        buffer.write(await image.read())
+    # 이미지 다운로드
+    generated_id = str(uuid4())
+    image_path = f"/tmp/{generated_id}_original.png"
+    download_image_from_url(image_url, image_path)
 
-    file_urls = []
-    generated_video_name = str(uuid4()) + '.mp4'
-    if ratioType == "가로형":
-        video_paths = make_advertise(image_path, prompt, generated_video_name, False)
-    elif ratioType == "세로형":
-        video_paths = make_advertise(image_path, prompt, generated_video_name, True)
 
-    for video_path in video_paths:
-        # S3 버킷에 업로드
-        bucket = 'jurassic-park'
-        file_url = f"https://{bucket}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/{generated_video_name}"
-        await upload_file_to_s3(video_path, key)
-        file_urls.append(file_url)
-        
-    # 실행 결과 확인
-    return {"result": file_urls}
+    # 이미지 생성 및 프롬프트 반환
+    modified_prompt = await make_image(image_path, prompt, f"{generated_id}.png", False)
+
+    # 광고 미리보기 업로드
+    preview_url = await post_advertise_preview(f"/home/metaai1/jinjoo_work/unicorn/tmp/{generated_id}.png", f"{generated_id}.png", ad_id)
+
+    # 비디오 생성
+    await make_video(f"/home/metaai1/jinjoo_work/unicorn/tmp/{generated_id}.png", modified_prompt, f"{generated_id}.mp4", False)
+
+
+    # 비디오 업로드
+    video_url = await post_advertise_video(f"/home/metaai1/jinjoo_work/unicorn/tmp/{generated_id}.mp4", f"{generated_id}.mp4", ad_id)
+
+    # 작업 완료
+    return {
+        "result": "광고 생성이 성공적으로 완료되었습니다.",
+        "preview_url": preview_url,
+        "video_url": video_url
+    }
+
 
     # except Exception as e:
-    #     raise HTTPException(status_code=400, detail=f'Error: {e}')
-
-@app.post("/generate-background")
-async def generate_background(
-    image: UploadFile = File(...),
-    prompt: str = Form(...),
-    corpId: int = Form(...),
-    type: str = Form(...)
-):
-    AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION")
-    try:
-        # 이미지 파일 저장 경로 설정
-        image_path = f"/tmp/{image.filename}"
-
-        # 이미지 파일을 저장
-        with open(image_path, "wb") as buffer:
-            buffer.write(await image.read())
-
-        # S3 버킷에 업로드
-        bucket = 'jurassic-park'
-        key = str(uuid4()) + '.jpg'
-        file_url = f"https://{bucket}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/{key}"
-        await upload_file_to_s3(image_path, key)
-
-        # 실행 결과 확인
-        return {"result": file_url}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Error: {e}')
+    #     await send_status_update(generated_id, "Failed")
+    #     logging.error(f"Task {generated_id} failed: {str(e)}")
+    #     return {"task_id": generated_id, "status": "Failed", "error": str(e)}
