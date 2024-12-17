@@ -5,7 +5,7 @@ import urllib.request
 import uuid
 
 import websocket
-server_address = "127.0.0.1:8190"
+server_address = "127.0.0.1:8189"
 client_id = str(uuid.uuid4())
 
 def queue_prompt(prompt):
@@ -36,9 +36,6 @@ def get_images(ws, prompt):
                 if data['node'] is None and data['prompt_id'] == prompt_id:
                     break #Execution is done
         else:
-            # If you want to be able to decode the binary stream for latent previews, here is how you can do it:
-            # bytesIO = BytesIO(out[8:])
-            # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
@@ -47,7 +44,7 @@ def get_images(ws, prompt):
       images_output = []
       if 'images' in node_output:
         for image in node_output['images']:
-            image_data = get_image(image['filename'], image['subfolder'], image['type'])
+            image_data = get_file(image['filename'], image['subfolder'], image['type'])
             images_output.append(image_data)
       output_images[node_id] = images_output
     return output_images
@@ -64,9 +61,6 @@ def get_videos(ws, prompt):
                 if data['node'] is None and data['prompt_id'] == prompt_id:
                     break #Execution is done
         else:
-            # # If you want to be able to decode the binary stream for latent previews, here is how you can do it:
-            # bytesIO = BytesIO(out[8:])
-            # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
@@ -82,30 +76,53 @@ def get_videos(ws, prompt):
 
 prompt_text = """
     {
-    "4": {
+    "3": {
         "inputs": {
-        "text": [
-            "357",
+        "seed": 0,
+        "steps": 20,
+        "cfg": 3,
+        "sampler_name": "dpmpp_2m_sde",
+        "scheduler": "karras",
+        "denoise": 1,
+        "model": [
+            "18",
             0
         ],
-        "clip": [
-            "82",
+        "positive": [
+            "19",
+            0
+        ],
+        "negative": [
+            "19",
             1
+        ],
+        "latent_image": [
+            "23",
+            0
         ]
         },
-        "class_type": "CLIPTextEncode",
+        "class_type": "KSampler",
         "_meta": {
-        "title": "CLIP Text Encode (Prompt)"
+        "title": "KSampler"
         }
     },
-    "5": {
+    "4": {
+        "inputs": {
+        "ckpt_name": "epicrealism_naturalSinRC1VAE.safetensors"
+        },
+        "class_type": "CheckpointLoaderSimple",
+        "_meta": {
+        "title": "Load Checkpoint"
+        }
+    },
+    "6": {
         "inputs": {
         "text": [
-            "359",
+            "91",
             0
         ],
         "clip": [
-            "82",
+            "4",
             1
         ]
         },
@@ -116,12 +133,25 @@ prompt_text = """
     },
     "7": {
         "inputs": {
+        "text": "(noise, blur, worst quality, low quality, error, cropped, bad anatomy, bad proportions, wrong hands)\\n(NSFW, nude)",
+        "clip": [
+            "4",
+            1
+        ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+        "title": "CLIP Text Encode (Prompt)"
+        }
+    },
+    "8": {
+        "inputs": {
         "samples": [
-            "19",
+            "3",
             0
         ],
         "vae": [
-            "82",
+            "4",
             2
         ]
         },
@@ -130,53 +160,87 @@ prompt_text = """
         "title": "VAE Decode"
         }
     },
-    "19": {
+    "9": {
         "inputs": {
-        "seed": 100361857014382,
-        "steps": 40,
-        "cfg": 2,
-        "sampler_name": "dpmpp_2m_sde",
-        "scheduler": "karras",
-        "denoise": 1,
-        "model": [
-            "37",
-            0
-        ],
-        "positive": [
-            "77",
-            0
-        ],
-        "negative": [
-            "77",
-            1
-        ],
-        "latent_image": [
-            "50",
+        "filename_prefix": "ComfyUI",
+        "images": [
+            "76",
             0
         ]
         },
-        "class_type": "KSampler",
+        "class_type": "SaveImage",
         "_meta": {
-        "title": "KSampler"
+        "title": "Save Image"
         }
     },
-    "35": {
+    "14": {
         "inputs": {
+        "images": [
+            "60",
+            0
+        ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+        "title": "Preview Image"
+        }
+    },
+    "15": {
+        "inputs": {
+        "image": [
+            "60",
+            0
+        ]
+        },
+        "class_type": "SplitImageWithAlpha",
+        "_meta": {
+        "title": "Split Image with Alpha"
+        }
+    },
+    "16": {
+        "inputs": {
+        "x": 0,
+        "y": 0,
+        "resize_source": false,
+        "destination": [
+            "61",
+            0
+        ],
+        "source": [
+            "15",
+            0
+        ],
         "mask": [
-            "194",
-            0
+            "60",
+            1
         ]
         },
-        "class_type": "MaskToImage",
+        "class_type": "ImageCompositeMasked",
         "_meta": {
-        "title": "Convert Mask to Image"
+        "title": "ImageCompositeMasked"
         }
     },
-    "37": {
+    "17": {
+        "inputs": {
+        "image": [
+            "60",
+            0
+        ],
+        "alpha": [
+            "60",
+            1
+        ]
+        },
+        "class_type": "ICLightApplyMaskGrey",
+        "_meta": {
+        "title": "IC Light Apply Mask Grey"
+        }
+    },
+    "18": {
         "inputs": {
         "model_path": "IC-Light/iclight_sd15_fc.safetensors",
         "model": [
-            "82",
+            "29",
             0
         ]
         },
@@ -185,71 +249,23 @@ prompt_text = """
         "title": "Load And Apply IC-Light"
         }
     },
-    "50": {
+    "19": {
         "inputs": {
-        "pixels": [
-            "35",
-            0
-        ],
-        "vae": [
-            "82",
-            2
-        ]
-        },
-        "class_type": "VAEEncode",
-        "_meta": {
-        "title": "VAE Encode"
-        }
-    },
-    "75": {
-        "inputs": {
-        "expand": 0,
-        "incremental_expandrate": 0,
-        "tapered_corners": true,
-        "flip_input": false,
-        "blur_radius": 28.1,
-        "lerp_alpha": 1,
-        "decay_factor": 1,
-        "fill_holes": false,
-        "mask": [
-            "408",
-            0
-        ]
-        },
-        "class_type": "GrowMaskWithBlur",
-        "_meta": {
-        "title": "Grow Mask With Blur"
-        }
-    },
-    "76": {
-        "inputs": {
-        "images": [
-            "35",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "77": {
-        "inputs": {
-        "multiplier": 0.15,
+        "multiplier": 0.182,
         "positive": [
-            "4",
+            "6",
             0
         ],
         "negative": [
-            "5",
+            "7",
             0
         ],
         "vae": [
-            "82",
+            "4",
             2
         ],
         "foreground": [
-            "78",
+            "20",
             0
         ]
         },
@@ -258,14 +274,14 @@ prompt_text = """
         "title": "IC-Light Conditioning"
         }
     },
-    "78": {
+    "20": {
         "inputs": {
         "pixels": [
-            "409",
+            "17",
             0
         ],
         "vae": [
-            "82",
+            "4",
             2
         ]
         },
@@ -274,196 +290,68 @@ prompt_text = """
         "title": "VAE Encode"
         }
     },
-    "82": {
+    "23": {
         "inputs": {
-        "ckpt_name": "epicrealism_naturalSinRC1VAE.safetensors"
-        },
-        "class_type": "CheckpointLoaderSimple",
-        "_meta": {
-        "title": "Load Checkpoint"
-        }
-    },
-    "194": {
-        "inputs": {
-        "min": 0,
-        "max": 0.8200000000000001,
-        "mask": [
-            "75",
-            0
-        ]
-        },
-        "class_type": "RemapMaskRange",
-        "_meta": {
-        "title": "Remap Mask Range"
-        }
-    },
-    "207": {
-        "inputs": {
-        "images": [
-            "406",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "208": {
-        "inputs": {
-        "text": [
-            "357",
-            0
-        ],
-        "clip": [
-            "82",
-            1
-        ]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-        "title": "CLIP Text Encode (Prompt)"
-        }
-    },
-    "209": {
-        "inputs": {
-        "text": [
-            "359",
-            0
-        ],
-        "clip": [
-            "82",
-            1
-        ]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-        "title": "CLIP Text Encode (Prompt)"
-        }
-    },
-    "210": {
-        "inputs": {
-        "seed": 180794899782095,
-        "steps": 40,
-        "cfg": 3.6,
-        "sampler_name": "dpmpp_2m_sde",
-        "scheduler": "karras",
-        "denoise": 1,
-        "model": [
-            "82",
-            0
-        ],
-        "positive": [
-            "315",
-            0
-        ],
-        "negative": [
-            "209",
-            0
-        ],
-        "latent_image": [
-            "345",
-            0
-        ]
-        },
-        "class_type": "KSampler",
-        "_meta": {
-        "title": "KSampler"
-        }
-    },
-    "211": {
-        "inputs": {
-        "samples": [
-            "210",
+        "pixels": [
+            "16",
             0
         ],
         "vae": [
-            "82",
+            "4",
             2
         ]
         },
-        "class_type": "VAEDecode",
+        "class_type": "VAEEncode",
         "_meta": {
-        "title": "VAE Decode"
+        "title": "VAE Encode"
         }
     },
-    "214": {
+    "28": {
         "inputs": {
-        "strength": 0.2,
-        "conditioning": [
-            "208",
+        "preset": "VIT-G (medium strength)",
+        "model": [
+            "4",
+            0
+        ]
+        },
+        "class_type": "IPAdapterUnifiedLoader",
+        "_meta": {
+        "title": "IPAdapter Unified Loader"
+        }
+    },
+    "29": {
+        "inputs": {
+        "weight": 1,
+        "weight_type": "ease in-out",
+        "combine_embeds": "concat",
+        "start_at": 0,
+        "end_at": 1,
+        "embeds_scaling": "V only",
+        "model": [
+            "28",
             0
         ],
-        "control_net": [
-            "215",
-            0
+        "ipadapter": [
+            "28",
+            1
         ],
         "image": [
-            "317",
-            0
-        ]
-        },
-        "class_type": "ControlNetApply",
-        "_meta": {
-        "title": "Apply ControlNet (OLD)"
-        }
-    },
-    "215": {
-        "inputs": {
-        "control_net_name": "control_v11f1p_sd15_depth_fp16.safetensors"
-        },
-        "class_type": "ControlNetLoader",
-        "_meta": {
-        "title": "Load ControlNet Model"
-        }
-    },
-    "216": {
-        "inputs": {
-        "width": 1024,
-        "height": 1024,
-        "batch_size": 1
-        },
-        "class_type": "EmptyLatentImage",
-        "_meta": {
-        "title": "Empty Latent Image"
-        }
-    },
-    "217": {
-        "inputs": {
-        "blend_percentage": 1,
-        "image_a": [
-            "211",
+            "16",
             0
         ],
-        "image_b": [
-            "410",
-            0
-        ],
-        "mask": [
-            "219",
-            0
+        "attn_mask": [
+            "60",
+            1
         ]
         },
-        "class_type": "Image Blend by Mask",
+        "class_type": "IPAdapterAdvanced",
         "_meta": {
-        "title": "Image Blend by Mask"
+        "title": "IPAdapter Advanced"
         }
     },
-    "219": {
+    "33": {
         "inputs": {
-        "mask": [
-            "331",
-            0
-        ]
-        },
-        "class_type": "MaskToImage",
-        "_meta": {
-        "title": "Convert Mask to Image"
-        }
-    },
-    "251": {
-        "inputs": {
-        "image": "ad_3.jpg",
+        "image": "mongtoo_resize2.png",
         "upload": "image"
         },
         "class_type": "LoadImage",
@@ -471,10 +359,10 @@ prompt_text = """
         "title": "Load Image"
         }
     },
-    "256": {
+    "57": {
         "inputs": {
         "images": [
-            "260",
+            "17",
             0
         ]
         },
@@ -483,491 +371,37 @@ prompt_text = """
         "title": "Preview Image"
         }
     },
-    "257": {
+    "58": {
         "inputs": {
-        "images": [
-            "264",
-            0
-        ]
+        "rgthree_comparer": {
+            "images": [
+            {
+                "name": "A",
+                "selected": true,
+                "url": "/api/view?filename=rgthree.compare._temp_vjkie_00051_.png&type=temp&subfolder=&rand=0.03875649013922433"
+            },
+            {
+                "name": "B",
+                "selected": true,
+                "url": "/api/view?filename=rgthree.compare._temp_vjkie_00052_.png&type=temp&subfolder=&rand=0.15152673713182918"
+            }
+            ]
         },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "258": {
-        "inputs": {
-        "image": [
-            "410",
-            0
-        ]
-        },
-        "class_type": "SplitImageWithAlpha",
-        "_meta": {
-        "title": "Split Image with Alpha"
-        }
-    },
-    "259": {
-        "inputs": {
-        "image": [
-            "258",
-            0
-        ]
-        },
-        "class_type": "ImageInvert",
-        "_meta": {
-        "title": "Invert Image"
-        }
-    },
-    "260": {
-        "inputs": {
-        "radius": 5,
-        "images": [
-            "258",
-            0
-        ]
-        },
-        "class_type": "ImageGaussianBlur",
-        "_meta": {
-        "title": "Image Gaussian Blur"
-        }
-    },
-    "261": {
-        "inputs": {
-        "mode": "add",
-        "blend_percentage": 0.4,
         "image_a": [
-            "259",
+            "76",
             0
         ],
         "image_b": [
-            "260",
+            "61",
             0
         ]
         },
-        "class_type": "Image Blending Mode",
+        "class_type": "Image Comparer (rgthree)",
         "_meta": {
-        "title": "Image Blending Mode"
+        "title": "Image Comparer (rgthree)"
         }
     },
-    "263": {
-        "inputs": {
-        "image": [
-            "261",
-            0
-        ]
-        },
-        "class_type": "ImageInvert",
-        "_meta": {
-        "title": "Invert Image"
-        }
-    },
-    "264": {
-        "inputs": {
-        "mode": "add",
-        "blend_percentage": 1,
-        "image_a": [
-            "260",
-            0
-        ],
-        "image_b": [
-            "263",
-            0
-        ]
-        },
-        "class_type": "Image Blending Mode",
-        "_meta": {
-        "title": "Image Blending Mode"
-        }
-    },
-    "269": {
-        "inputs": {
-        "images": [
-            "273",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "270": {
-        "inputs": {
-        "images": [
-            "277",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "271": {
-        "inputs": {
-        "image": [
-            "7",
-            0
-        ]
-        },
-        "class_type": "SplitImageWithAlpha",
-        "_meta": {
-        "title": "Split Image with Alpha"
-        }
-    },
-    "272": {
-        "inputs": {
-        "image": [
-            "271",
-            0
-        ]
-        },
-        "class_type": "ImageInvert",
-        "_meta": {
-        "title": "Invert Image"
-        }
-    },
-    "273": {
-        "inputs": {
-        "radius": 5,
-        "images": [
-            "271",
-            0
-        ]
-        },
-        "class_type": "ImageGaussianBlur",
-        "_meta": {
-        "title": "Image Gaussian Blur"
-        }
-    },
-    "274": {
-        "inputs": {
-        "mode": "add",
-        "blend_percentage": 0.5,
-        "image_a": [
-            "272",
-            0
-        ],
-        "image_b": [
-            "273",
-            0
-        ]
-        },
-        "class_type": "Image Blending Mode",
-        "_meta": {
-        "title": "Image Blending Mode"
-        }
-    },
-    "276": {
-        "inputs": {
-        "image": [
-            "274",
-            0
-        ]
-        },
-        "class_type": "ImageInvert",
-        "_meta": {
-        "title": "Invert Image"
-        }
-    },
-    "277": {
-        "inputs": {
-        "mode": "add",
-        "blend_percentage": 1,
-        "image_a": [
-            "273",
-            0
-        ],
-        "image_b": [
-            "276",
-            0
-        ]
-        },
-        "class_type": "Image Blending Mode",
-        "_meta": {
-        "title": "Image Blending Mode"
-        }
-    },
-    "291": {
-        "inputs": {
-        "images": [
-            "308",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "305": {
-        "inputs": {
-        "blend_percentage": 1,
-        "image_a": [
-            "277",
-            0
-        ],
-        "image_b": [
-            "264",
-            0
-        ],
-        "mask": [
-            "320",
-            0
-        ]
-        },
-        "class_type": "Image Blend by Mask",
-        "_meta": {
-        "title": "Image Blend by Mask"
-        }
-    },
-    "306": {
-        "inputs": {
-        "images": [
-            "305",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "307": {
-        "inputs": {
-        "mode": "add",
-        "blend_percentage": 0.65,
-        "image_a": [
-            "273",
-            0
-        ],
-        "image_b": [
-            "305",
-            0
-        ]
-        },
-        "class_type": "Image Blending Mode",
-        "_meta": {
-        "title": "Image Blending Mode"
-        }
-    },
-    "308": {
-        "inputs": {
-        "black_level": 83,
-        "mid_level": 127,
-        "white_level": 172,
-        "image": [
-            "307",
-            0
-        ]
-        },
-        "class_type": "Image Levels Adjustment",
-        "_meta": {
-        "title": "Image Levels Adjustment"
-        }
-    },
-    "315": {
-        "inputs": {
-        "strength": 0.2,
-        "conditioning": [
-            "214",
-            0
-        ],
-        "control_net": [
-            "316",
-            0
-        ],
-        "image": [
-            "318",
-            0
-        ]
-        },
-        "class_type": "ControlNetApply",
-        "_meta": {
-        "title": "Apply ControlNet (OLD)"
-        }
-    },
-    "316": {
-        "inputs": {
-        "control_net_name": "control_v11p_sd15_lineart_fp16.safetensors"
-        },
-        "class_type": "ControlNetLoader",
-        "_meta": {
-        "title": "Load ControlNet Model"
-        }
-    },
-    "317": {
-        "inputs": {
-        "ckpt_name": "depth_anything_vitl14.pth",
-        "resolution": 512,
-        "image": [
-            "410",
-            0
-        ]
-        },
-        "class_type": "DepthAnythingPreprocessor",
-        "_meta": {
-        "title": "Depth Anything"
-        }
-    },
-    "318": {
-        "inputs": {
-        "resolution": 512,
-        "image": [
-            "410",
-            0
-        ]
-        },
-        "class_type": "AnimeLineArtPreprocessor",
-        "_meta": {
-        "title": "Anime Lineart"
-        }
-    },
-    "320": {
-        "inputs": {
-        "mask": [
-            "331",
-            0
-        ]
-        },
-        "class_type": "MaskToImage",
-        "_meta": {
-        "title": "Convert Mask to Image"
-        }
-    },
-    "330": {
-        "inputs": {
-        "expand": 30,
-        "tapered_corners": true,
-        "mask": [
-            "406",
-            1
-        ]
-        },
-        "class_type": "GrowMask",
-        "_meta": {
-        "title": "GrowMask"
-        }
-    },
-    "331": {
-        "inputs": {
-        "expand": -30,
-        "tapered_corners": true,
-        "mask": [
-            "330",
-            0
-        ]
-        },
-        "class_type": "GrowMask",
-        "_meta": {
-        "title": "GrowMask"
-        }
-    },
-    "345": {
-        "inputs": {
-        "samples": [
-            "346",
-            0
-        ],
-        "mask": [
-            "347",
-            0
-        ]
-        },
-        "class_type": "SetLatentNoiseMask",
-        "_meta": {
-        "title": "Set Latent Noise Mask"
-        }
-    },
-    "346": {
-        "inputs": {
-        "pixels": [
-            "410",
-            0
-        ],
-        "vae": [
-            "82",
-            2
-        ]
-        },
-        "class_type": "VAEEncode",
-        "_meta": {
-        "title": "VAE Encode"
-        }
-    },
-    "347": {
-        "inputs": {
-        "mask": [
-            "331",
-            0
-        ]
-        },
-        "class_type": "InvertMask",
-        "_meta": {
-        "title": "InvertMask"
-        }
-    },
-    "349": {
-        "inputs": {
-        "filename_prefix": "ComfyUI",
-        "images": [
-            "217",
-            0
-        ]
-        },
-        "class_type": "SaveImage",
-        "_meta": {
-        "title": "Save Image"
-        }
-    },
-    "353": {
-        "inputs": {
-        "filename_prefix": "ComfyUI",
-        "images": [
-            "308",
-            0
-        ]
-        },
-        "class_type": "SaveImage",
-        "_meta": {
-        "title": "Save Image"
-        }
-    },
-    "357": {
-        "inputs": {
-        "text": [
-            "412",
-            0
-        ]
-        },
-        "class_type": "ttN text",
-        "_meta": {
-        "title": "positive prompt"
-        }
-    },
-    "359": {
-        "inputs": {
-        "text": "nsfw"
-        },
-        "class_type": "ttN text",
-        "_meta": {
-        "title": "negative prompt"
-        }
-    },
-    "364": {
-        "inputs": {
-        "images": [
-            "307",
-            0
-        ]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-        "title": "Preview Image"
-        }
-    },
-    "405": {
+    "59": {
         "inputs": {
         "model": "u2net: general purpose",
         "providers": "CPU"
@@ -977,14 +411,14 @@ prompt_text = """
         "title": "🔧 RemBG Session"
         }
     },
-    "406": {
+    "60": {
         "inputs": {
         "rembg_session": [
-            "405",
+            "59",
             0
         ],
         "image": [
-            "410",
+            "61",
             0
         ]
         },
@@ -993,50 +427,16 @@ prompt_text = """
         "title": "🔧 Image Remove Background"
         }
     },
-    "408": {
-        "inputs": {
-        "red": 255,
-        "green": 255,
-        "blue": 255,
-        "threshold": 0,
-        "image": [
-            "217",
-            0
-        ]
-        },
-        "class_type": "MaskFromColor+",
-        "_meta": {
-        "title": "🔧 Mask From Color"
-        }
-    },
-    "409": {
+    "61": {
         "inputs": {
         "width": 512,
         "height": 512,
         "interpolation": "nearest",
-        "method": "stretch",
-        "condition": "always",
-        "multiple_of": 0,
-        "image": [
-            "217",
-            0
-        ]
-        },
-        "class_type": "ImageResize+",
-        "_meta": {
-        "title": "🔧 Image Resize"
-        }
-    },
-    "410": {
-        "inputs": {
-        "width": 1024,
-        "height": 1024,
-        "interpolation": "nearest",
         "method": "keep proportion",
-        "condition": "always",
+        "condition": "downscale if bigger",
         "multiple_of": 0,
         "image": [
-            "251",
+            "33",
             0
         ]
         },
@@ -1045,14 +445,431 @@ prompt_text = """
         "title": "🔧 Image Resize"
         }
     },
-    "411": {
+    "62": {
         "inputs": {
-        "prompt": "제품 뒤에 벛꽃이 흩날리는 사진",
+        "image": [
+            "16",
+            0
+        ]
+        },
+        "class_type": "SplitImageWithAlpha",
+        "_meta": {
+        "title": "Split Image with Alpha"
+        }
+    },
+    "63": {
+        "inputs": {
+        "image": [
+            "62",
+            0
+        ]
+        },
+        "class_type": "ImageInvert",
+        "_meta": {
+        "title": "Invert Image"
+        }
+    },
+    "64": {
+        "inputs": {
+        "radius": 2,
+        "images": [
+            "62",
+            0
+        ]
+        },
+        "class_type": "ImageGaussianBlur",
+        "_meta": {
+        "title": "Image Gaussian Blur"
+        }
+    },
+    "65": {
+        "inputs": {
+        "mode": "add",
+        "blend_percentage": 0.4,
+        "image_a": [
+            "63",
+            0
+        ],
+        "image_b": [
+            "64",
+            0
+        ]
+        },
+        "class_type": "Image Blending Mode",
+        "_meta": {
+        "title": "Image Blending Mode"
+        }
+    },
+    "66": {
+        "inputs": {
+        "image": [
+            "65",
+            0
+        ]
+        },
+        "class_type": "ImageInvert",
+        "_meta": {
+        "title": "Invert Image"
+        }
+    },
+    "67": {
+        "inputs": {
+        "mode": "add",
+        "blend_percentage": 1,
+        "image_a": [
+            "64",
+            0
+        ],
+        "image_b": [
+            "66",
+            0
+        ]
+        },
+        "class_type": "Image Blending Mode",
+        "_meta": {
+        "title": "Image Blending Mode"
+        }
+    },
+    "68": {
+        "inputs": {
+        "image": [
+            "8",
+            0
+        ]
+        },
+        "class_type": "SplitImageWithAlpha",
+        "_meta": {
+        "title": "Split Image with Alpha"
+        }
+    },
+    "69": {
+        "inputs": {
+        "image": [
+            "68",
+            0
+        ]
+        },
+        "class_type": "ImageInvert",
+        "_meta": {
+        "title": "Invert Image"
+        }
+    },
+    "70": {
+        "inputs": {
+        "radius": 2,
+        "images": [
+            "68",
+            0
+        ]
+        },
+        "class_type": "ImageGaussianBlur",
+        "_meta": {
+        "title": "Image Gaussian Blur"
+        }
+    },
+    "71": {
+        "inputs": {
+        "mode": "add",
+        "blend_percentage": 0.5,
+        "image_a": [
+            "69",
+            0
+        ],
+        "image_b": [
+            "70",
+            0
+        ]
+        },
+        "class_type": "Image Blending Mode",
+        "_meta": {
+        "title": "Image Blending Mode"
+        }
+    },
+    "72": {
+        "inputs": {
+        "image": [
+            "71",
+            0
+        ]
+        },
+        "class_type": "ImageInvert",
+        "_meta": {
+        "title": "Invert Image"
+        }
+    },
+    "73": {
+        "inputs": {
+        "mode": "add",
+        "blend_percentage": 1,
+        "image_a": [
+            "70",
+            0
+        ],
+        "image_b": [
+            "72",
+            0
+        ]
+        },
+        "class_type": "Image Blending Mode",
+        "_meta": {
+        "title": "Image Blending Mode"
+        }
+    },
+    "74": {
+        "inputs": {
+        "blend_percentage": 1,
+        "image_a": [
+            "73",
+            0
+        ],
+        "image_b": [
+            "67",
+            0
+        ],
+        "mask": [
+            "78",
+            0
+        ]
+        },
+        "class_type": "Image Blend by Mask",
+        "_meta": {
+        "title": "Image Blend by Mask"
+        }
+    },
+    "75": {
+        "inputs": {
+        "mode": "add",
+        "blend_percentage": 0.55,
+        "image_a": [
+            "70",
+            0
+        ],
+        "image_b": [
+            "74",
+            0
+        ]
+        },
+        "class_type": "Image Blending Mode",
+        "_meta": {
+        "title": "Image Blending Mode"
+        }
+    },
+    "76": {
+        "inputs": {
+        "black_level": 60,
+        "mid_level": 130,
+        "white_level": 190,
+        "image": [
+            "75",
+            0
+        ]
+        },
+        "class_type": "Image Levels Adjustment",
+        "_meta": {
+        "title": "Image Levels Adjustment"
+        }
+    },
+    "77": {
+        "inputs": {
+        "expand": -2,
+        "tapered_corners": true,
+        "mask": [
+            "60",
+            1
+        ]
+        },
+        "class_type": "GrowMask",
+        "_meta": {
+        "title": "GrowMask"
+        }
+    },
+    "78": {
+        "inputs": {
+        "mask": [
+            "77",
+            0
+        ]
+        },
+        "class_type": "MaskToImage",
+        "_meta": {
+        "title": "Convert Mask to Image"
+        }
+    },
+    "79": {
+        "inputs": {
+        "model": "THUDM/CogVideoX-5b-I2V",
+        "precision": "fp16",
+        "fp8_transformer": "disabled",
+        "compile": "disabled",
+        "enable_sequential_cpu_offload": true
+        },
+        "class_type": "DownloadAndLoadCogVideoModel",
+        "_meta": {
+        "title": "(Down)load CogVideo Model"
+        }
+    },
+    "80": {
+        "inputs": {
+        "clip_name": "t5xxl_fp8_e4m3fn.safetensors",
+        "type": "sd3"
+        },
+        "class_type": "CLIPLoader",
+        "_meta": {
+        "title": "Load CLIP"
+        }
+    },
+    "81": {
+        "inputs": {
+        "prompt": [
+            "91",
+            0
+        ],
+        "strength": 1,
+        "force_offload": true,
+        "clip": [
+            "80",
+            0
+        ]
+        },
+        "class_type": "CogVideoTextEncode",
+        "_meta": {
+        "title": "CogVideo TextEncode"
+        }
+    },
+    "82": {
+        "inputs": {
+        "prompt": "nsfw",
+        "strength": 1,
+        "force_offload": true,
+        "clip": [
+            "80",
+            0
+        ]
+        },
+        "class_type": "CogVideoTextEncode",
+        "_meta": {
+        "title": "CogVideo TextEncode"
+        }
+    },
+    "83": {
+        "inputs": {
+        "width": 720,
+        "height": 480,
+        "upscale_method": "lanczos",
+        "keep_proportion": false,
+        "divisible_by": 16,
+        "crop": "disabled",
+        "image": [
+            "76",
+            0
+        ]
+        },
+        "class_type": "ImageResizeKJ",
+        "_meta": {
+        "title": "Resize Image"
+        }
+    },
+    "84": {
+        "inputs": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "CogVideoX-I2V",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": false,
+        "images": [
+            "85",
+            0
+        ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+        "title": "Video Combine 🎥🅥🅗🅢"
+        }
+    },
+    "85": {
+        "inputs": {
+        "enable_vae_tiling": true,
+        "tile_sample_min_height": 96,
+        "tile_sample_min_width": 96,
+        "tile_overlap_factor_height": 0.083,
+        "tile_overlap_factor_width": 0.083,
+        "auto_tile_size": true,
+        "pipeline": [
+            "86",
+            0
+        ],
+        "samples": [
+            "86",
+            1
+        ]
+        },
+        "class_type": "CogVideoDecode",
+        "_meta": {
+        "title": "CogVideo Decode"
+        }
+    },
+    "86": {
+        "inputs": {
+        "height": 480,
+        "width": 720,
+        "num_frames": 49,
+        "steps": 18,
+        "cfg": 6,
+        "seed": 65334758276105,
+        "scheduler": "DDIM",
+        "denoise_strength": 1,
+        "pipeline": [
+            "79",
+            0
+        ],
+        "positive": [
+            "81",
+            0
+        ],
+        "negative": [
+            "82",
+            0
+        ],
+        "image_cond_latents": [
+            "87",
+            0
+        ]
+        },
+        "class_type": "CogVideoSampler",
+        "_meta": {
+        "title": "CogVideo Sampler"
+        }
+    },
+    "87": {
+        "inputs": {
+        "chunk_size": 16,
+        "enable_tiling": true,
+        "pipeline": [
+            "79",
+            0
+        ],
+        "image": [
+            "83",
+            0
+        ]
+        },
+        "class_type": "CogVideoImageEncode",
+        "_meta": {
+        "title": "CogVideo ImageEncode"
+        }
+    },
+    "90": {
+        "inputs": {
+        "prompt": "회색 강아지 인형이 숲 속을 돌아다니고 있다. ",
         "debug": false,
         "url": "http://127.0.0.1:11434",
         "model": "llama3:latest",
-        "system": "너는 똑똑한 AI 이미지 생성형 프롬프트 작성자야. 입력받은 프롬프트를 기반으로 생성형 AI 이미지 모델을 이용해 독특한 광고 이미지를 생성하기 위한 프롬프트를 작성해줘. 프롬프트는 실제 사진을 묘사해야 하고, 영어로 작성되어야해. 주제, 구도, 분위기, 색감, 조명 등을 각각의 문단 별로 최대한 자세히 서술해줘.\\n답변은 생성한 프롬프트만 하면 돼. ",
-        "seed": 756191439,
+        "system": "너는 똑똑한 AI 이미지 생성형 프롬프트 작성자야. 입력받은 프롬프트를 기반으로 생성형 AI 이미지 모델을 이용해 광고 이미지를 생성하기 위한 프롬프트를 작성해줘. 프롬프트는 실제 사진을 묘사해야 하고, 영어로 작성되어야해. 주제, 구도, 분위기, 색감, 조명 등을 각각의 문단 별로 최대한 자세히 서술해줘.\\n답변은 생성한 프롬프트만 하면 돼. ",
+        "seed": 409350015,
         "top_k": 40,
         "top_p": 0.9,
         "temperature": 0.8,
@@ -1067,17 +884,17 @@ prompt_text = """
         "title": "Ollama Generate Advance"
         }
     },
-    "412": {
+    "91": {
         "inputs": {
         "prompt": [
-            "411",
+            "90",
             0
         ],
         "debug": false,
         "url": "http://127.0.0.1:11434",
         "model": "qwen2m:latest",
-        "system": "프롬프트를 한 문장으로 요약해줘. 프롬프트는 영어여야 해\\n답변은 오직 프롬프트만 보내줘.",
-        "seed": 1802146844,
+        "system": "프롬프트를 한 문장으로 요약해줘. 프롬프트는 영어여야 해\\n답변의 형식은 아래처럼 오직 프롬프트만 보내줘.\\n\\nidyllic atmosphere, with a delicate cherry blossom tree in full bloom behind a product, Soft, warm sunlight",
+        "seed": 108406798,
         "top_k": 40,
         "top_p": 0.9,
         "temperature": 0.8,
@@ -1092,197 +909,30 @@ prompt_text = """
         "title": "Ollama Generate Advance"
         }
     },
-    "413": {
+    "92": {
         "inputs": {
         "text": [
-            "411",
+            "90",
             0
         ],
-        "text2": "Here is the prompt:\\n\\n**Theme:** Whimsical Romance\\n\\n**Composition:** A product (e.g. jewelry, cosmetics, luxury watch) is placed at the center of a serene and idyllic scene, with cherry blossoms (sakura) gently falling from above, creating a soft and romantic ambiance.\\n\\n**Mood:** Dreamy, ethereal, and whimsical, evoking a sense of enchantment and wonder. The overall atmosphere should be tranquil and peaceful, inviting the viewer to step into the serene world.\\n\\n**Color Palette:**\\n\\n* Soft pastel shades (pink, peach, lavender) for the cherry blossoms\\n* Warm beige or cream tones for the product and its packaging\\n* Subtle hints of blue or green in the background to evoke a sense of sky or nature\\n\\n**Lighting:** Soft, gentle, and diffused natural light, as if the scene is bathed in the soft glow of dawn or early evening. Avoid harsh or dramatic lighting.\\n\\n**Additional Details:**\\n\\n* The cherry blossoms should be falling from above, creating a sense of movement and dynamics\\n* The product should be prominently featured, with enough space around it to create a sense of breathing room\\n* Incorporate some subtle textures or patterns in the background (e.g. grass, stones) to add depth and visual interest\\n\\nThe goal is to create an image that is both visually stunning and evocative, capturing the viewer's imagination and inviting them to explore the whimsical world within."
+        "text2": "Here is the prompt:\\n\\n**Theme:** Whimsical Forest Adventure\\n\\n**Composition:** A small, gray plush puppy toy ( approx. 5-7 inches in length) stands out amidst a lush, vibrant forest landscape. The camera angle should be from a slight overhead perspective, allowing the viewer to see the puppy's miniature figure in relation to the surrounding environment.\\n\\n**Mood:** Playful, Curious, and Enchanting\\n\\n**Color Palette:**\\n\\n* Main colors: Soft greens (e.g., sage, moss), rich browns, and weathered wood tones\\n* Accent colors: Warm beige, creamy whites, and subtle hints of blue (for the sky or mist)\\n\\n**Lighting:** Natural, with soft dappled sunlight filtering through the leaves. The atmosphere should be tranquil, with a few wispy clouds adding to the dreamy quality.\\n\\n**Additional Details:**\\n\\n* Include some scattered forest floor elements, such as twigs, pinecones, and ferns\\n* Consider incorporating a few subtle, shimmering effects (e.g., dew droplets, spider webs) to enhance the magical atmosphere\\n* The puppy toy should be positioned in a way that suggests it's exploring or discovering something new (e.g., peeking behind a leaf, sniffing at a flower)\\n\\nPlease create an AI-generated image based on this prompt."
         },
         "class_type": "ShowText|pysssss",
         "_meta": {
         "title": "Show Text 🐍"
         }
     },
-    "416": {
+    "93": {
         "inputs": {
         "text": [
-            "412",
+            "91",
             0
         ],
-        "text2": "Craft a dreamy, ethereal image featuring a product at the center of a tranquil sakura blossom scene bathed in soft, warm light, where delicate cherry petals fall gently around it, creating a sense of enchantment and wonder with a color palette of soft pastels, warm beiges, and subtle blues or greens, and incorporate gentle movement and depth through falling blossoms and textures."
+        "text2": "The prompt outlines creating a whimsical forest adventure scene featuring a small gray plush puppy toy amidst a lush greenery backdrop with soft sunlight filtering through the trees and enveloped in a palette of sage greens, rich browns, and weathered woods. The overall mood should be playful, curious, and enchanting with gentle lighting from dappled sunlight and subtle details like shimmering dew droplets or spider webs adding to the mystical atmosphere. The puppy toy is depicted as if it's exploring or discovering its surroundings by positioning it among scattered forest elements such as twigs, pinecones, and ferns in an overhead perspective that highlights both the puppy and environment."
         },
         "class_type": "ShowText|pysssss",
         "_meta": {
         "title": "Show Text 🐍"
-        }
-    },
-    "418": {
-        "inputs": {
-        "model": "THUDM/CogVideoX-5b-I2V",
-        "precision": "bf16",
-        "fp8_transformer": "disabled",
-        "compile": "disabled",
-        "enable_sequential_cpu_offload": true
-        },
-        "class_type": "DownloadAndLoadCogVideoModel",
-        "_meta": {
-        "title": "(Down)load CogVideo Model"
-        }
-    },
-    "419": {
-        "inputs": {
-        "clip_name": "t5xxl_fp8_e4m3fn.safetensors",
-        "type": "sd3"
-        },
-        "class_type": "CLIPLoader",
-        "_meta": {
-        "title": "Load CLIP"
-        }
-    },
-    "420": {
-        "inputs": {
-        "prompt": [
-            "412",
-            0
-        ],
-        "strength": 1,
-        "force_offload": true,
-        "clip": [
-            "419",
-            0
-        ]
-        },
-        "class_type": "CogVideoTextEncode",
-        "_meta": {
-        "title": "CogVideo TextEncode"
-        }
-    },
-    "421": {
-        "inputs": {
-        "prompt": "nsfw",
-        "strength": 1,
-        "force_offload": true,
-        "clip": [
-            "419",
-            0
-        ]
-        },
-        "class_type": "CogVideoTextEncode",
-        "_meta": {
-        "title": "CogVideo TextEncode"
-        }
-    },
-    "423": {
-        "inputs": {
-        "width": 720,
-        "height": 480,
-        "upscale_method": "lanczos",
-        "keep_proportion": false,
-        "divisible_by": 16,
-        "crop": "disabled",
-        "image": [
-            "308",
-            0
-        ]
-        },
-        "class_type": "ImageResizeKJ",
-        "_meta": {
-        "title": "Resize Image"
-        }
-    },
-    "424": {
-        "inputs": {
-        "frame_rate": 8,
-        "loop_count": 0,
-        "filename_prefix": "CogVideoX-I2V",
-        "format": "video/h264-mp4",
-        "pix_fmt": "yuv420p",
-        "crf": 19,
-        "save_metadata": true,
-        "pingpong": false,
-        "save_output": false,
-        "images": [
-            "425",
-            0
-        ]
-        },
-        "class_type": "VHS_VideoCombine",
-        "_meta": {
-        "title": "Video Combine 🎥🅥🅗🅢"
-        }
-    },
-    "425": {
-        "inputs": {
-        "enable_vae_tiling": false,
-        "tile_sample_min_height": 96,
-        "tile_sample_min_width": 96,
-        "tile_overlap_factor_height": 0.083,
-        "tile_overlap_factor_width": 0.083,
-        "auto_tile_size": true,
-        "pipeline": [
-            "426",
-            0
-        ],
-        "samples": [
-            "426",
-            1
-        ]
-        },
-        "class_type": "CogVideoDecode",
-        "_meta": {
-        "title": "CogVideo Decode"
-        }
-    },
-    "426": {
-        "inputs": {
-        "height": 480,
-        "width": 720,
-        "num_frames": 49,
-        "steps": 25,
-        "cfg": 6,
-        "seed": 65334758276105,
-        "scheduler": "DDIM",
-        "denoise_strength": 1,
-        "pipeline": [
-            "418",
-            0
-        ],
-        "positive": [
-            "420",
-            0
-        ],
-        "negative": [
-            "421",
-            0
-        ],
-        "image_cond_latents": [
-            "427",
-            0
-        ]
-        },
-        "class_type": "CogVideoSampler",
-        "_meta": {
-        "title": "CogVideo Sampler"
-        }
-    },
-    "427": {
-        "inputs": {
-        "chunk_size": 16,
-        "enable_tiling": true,
-        "pipeline": [
-            "418",
-            0
-        ],
-        "image": [
-            "423",
-            0
-        ]
-        },
-        "class_type": "CogVideoImageEncode",
-        "_meta": {
-        "title": "CogVideo ImageEncode"
         }
     }
     }
@@ -1290,16 +940,16 @@ prompt_text = """
 
 def make_advertise(image_value, prompt_value, generated_video_name, is_vertical=False ):
     prompt = json.loads(prompt_text)
-    prompt["251"]["inputs"]["image"] = image_value
-    prompt["411"]["inputs"]["prompt"] = prompt_value
+    prompt["33"]["inputs"]["image"] = image_value
+    prompt["90"]["inputs"]["prompt"] = prompt_value
   
     ws = websocket.WebSocket()
     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-    images = get_images(ws, prompt)
+    videos = get_videos(ws, prompt)
     ws.close()
     video_paths = []
     for node_id in videos.keys():
-        if node_id == "424":
+        if node_id == "84":
             for video_data in videos[node_id]:
                 video_path = f'./tmp/{generated_video_name}.mp4'
                 video_paths.append(video_path)
