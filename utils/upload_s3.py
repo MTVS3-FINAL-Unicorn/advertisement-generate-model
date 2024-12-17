@@ -2,6 +2,8 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 from dotenv import load_dotenv
 import os
+import httpx
+from fastapi import HTTPException
 
 # .env 파일 로드
 load_dotenv()
@@ -30,8 +32,53 @@ async def upload_file_to_s3(file_path, key):
     except NoCredentialsError:
         print("Credentials not available")
 
-
-if __name__ == '__main__':
-    file_path = 'ComfyUI/output/AnimateDiff_00009.mp4'
-    bucket = 'jurassic-park'
-    key = 'comfy_result.wav' 
+async def post_advertise_video(file_path, key, ad_id):   
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            with open(file_path, "rb") as file:
+                files = {
+                    "adVideo": (key, file, "video/mp4")
+                }
+                data = {
+                    "adId": ad_id
+                }
+                response = await client.post(
+                    "http://125.132.216.190:319/api/v1/ad/generated/video",
+                    files=files,
+                    data=data
+                )
+                response.raise_for_status()
+                print(response.text)
+                return response.text
+        
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=exc.response.status_code, detail=str(exc))
+        except Exception as e:
+            print(f"일반 에러 발생: {e}")
+            return None
+        
+async def post_advertise_preview(file_path, key, ad_id):
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            with open(file_path, "rb") as file:
+                files = {
+                    "previewImage": (key, file, "image/jpeg")
+                }
+                data = {
+                    "adId": ad_id
+                }
+                response = await client.post(
+                    "http://125.132.216.190:319/api/v1/ad/generated/preview",
+                    files=files,
+                    data=data
+                )
+                response.raise_for_status()
+                # print(response.text)
+ 
+                return response.text
+        
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=exc.response.status_code, detail=str(exc))
+        except Exception as e:
+            print(f"일반 에러 발생: {e}")
+            return None

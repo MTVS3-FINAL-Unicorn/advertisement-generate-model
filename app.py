@@ -1,176 +1,71 @@
-import os
 from uuid import uuid4
-import base64
-from AnalyzeMeeting.lda_model import TopicModel
-from AnalyzeMeeting.stt import stt
-from AnalyzeMeeting.text_organize import remove_stopwords, tokenize_text
-from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from utils.upload_s3 import upload_file_to_s3
-from AnalyzeMeeting.embedding_vector_model import EmbeddingVectorModel
+from utils.upload_s3 import post_advertise_video, post_advertise_preview
+from comfyApi.img2vid import make_video
+from comfyApi.img2img import make_image
+from utils.get_s3 import download_image_from_url
+from fastapi import FastAPI
+import logging
 
-# 환경변수 로드
-load_dotenv()
 
-# FastAPI와 템플릿 설정
-app = FastAPI()
-templates = Jinja2Templates(directory="./templates")
+logging.basicConfig(
+    filename='app.log',
+    filemode='a',
+    level=logging.INFO,
+    encoding='utf-8-sig',
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
-# embedding_model 생성
-embedding_vector_model = EmbeddingVectorModel()
 
-# 토큰 저장소
-tokens = {}
+# FastAPI 앱 초기화
+app = FastAPI(
+    title="광고 생성 API 문서",
+    description="영상 광고 생성 기능",
+    version="1.0"
+)
 
-# 텍스트 답변 처리 엔드포인트
-class TextResponse(BaseModel):
-    surveyQuestion: str
-    textResponse: str
-    userId: int
-    meetingId: int
-    corpId: int
 
-@app.post("/submit-text-response")
-async def submit_text_response(response: TextResponse):
-    if response.corpId not in tokens:
-        tokens[response.corpId] = {response.meetingId: []}
-    tokens[response.corpId][response.meetingId].extend(remove_stopwords(tokenize_text(response.textResponse)))
-    return {"result": f"{response.textResponse}"}
+# 광고 생성 요청
+class GenerateVideoIn(BaseModel):
+    image: str
+    prompt: str
+    adId: int
 
-# 음성 답변 처리 엔드포인트 (음성 파일을 STT로 변환)
-class VoiceResponse(BaseModel):
-    surveyQuestion: str 
-    voiceResponse: str
-    userId: int 
-    meetingId: int 
-    corpId: int 
-@app.post("/submit-voice-response")
-async def submit_voice_response(response: VoiceResponse):
-    try:
-        voice_data = base64.b64decode(response.voiceResponse)
-        text_response = stt(voice_data)
-        if response.corpId not in tokens:
-            tokens[response.corpId] = {response.meetingId: []}
-        tokens[response.corpId][response.meetingId].extend(remove_stopwords(tokenize_text(text_response)))
-        return {"result": f"{text_response}"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Error processing voice response: {e}')
 
-# 설문 선택 답변 처리 엔드포인트
-class ChoiceResponse(BaseModel):
-    surveyQuestion: str
-    choiceResponse: str
-    userId: int
-    meetingId: int
-    corpId: int
-    
-@app.post("/submit-choice-response")
-async def submit_choice_response(response: ChoiceResponse):
-    # 선택형 설문 데이터를 저장
-    return {"result": "Choice response received"}
-
-# 최종 분석 처리 엔드포인트
-class AnalyzeResponse(BaseModel):
-    corpId: int
-    meetingId: int
-
-@app.post("/analyze-responses")
-async def analyze_responses(response: AnalyzeResponse):
-    try:
-        topic_model = TopicModel(tokens[response.corpId][response.meetingId], response.corpId, response.meetingId)
-        json_result = topic_model.make_lda_json()
-        
-        embedding_vector_model.make_embeddings(tokens[response.corpId][response.meetingId], response.corpId, response.meetingId)
-        embedding_vector_model.make_checkpoint()
-        embedding_vector_model.run_tensorboard('0.0.0.0', '7779')
-        return json_result
-    except KeyError:
-        if response.corpId not in tokens:
-            raise HTTPException(status_code=404, detail="corpId에 해당하는 데이터가 존재하지 않습니다.")
-        elif response.meetingId not in tokens[response.corpId]:
-            raise HTTPException(status_code=404, detail='meetingId에 해당하는 데이터가 존재하지 않습니다.')
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"error: {e}")
-
-# FastAPI로 HTML 파일을 서빙
-@app.get("/index.html", response_class=HTMLResponse)
-async def serve_html():
-    try:
-        with open("./index.html", "r") as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content, status_code=200)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="HTML file not found.")
-
-# LDA 시각화 처리 엔드포인트
-@app.post("/lda-visualization")
-async def lda_visualization(request: Request, response: AnalyzeResponse):
-    try:
-        topic_model = TopicModel(tokens[response.corpId][response.meetingId], response.corpId, response.meetingId)
-        json_result = topic_model.make_lda_json()
-
-        # 템플릿에 데이터를 전달하여 렌더링
-        return templates.TemplateResponse("lda_visualization.html", {
-            "request": request,
-            "lda_data": json_result
-        })
-    except KeyError:
-        raise HTTPException(status_code=404, detail="No data found for the given corpId and meetingId.")
-
-# Video Ad 생성 요청에 필요한 이미지 파일과 프롬프트 받기
 @app.post("/generate-videoad")
-async def generate_videoad(
-    image: UploadFile = File(...),
-    prompt: str = Form(...),
-    corpId: int = Form(...),
-    type: str = Form(...)
-):
-    AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION")
-    try:
-        # 이미지 파일 저장 경로 설정
-        image_path = f"/tmp/{image.filename}"
+async def generate_videoad(response: GenerateVideoIn):
+    # try:
+    # 요청 데이터 가져오기
+    image_url, prompt, ad_id = response.image, response.prompt, response.adId
 
-        # 이미지 파일을 저장
-        with open(image_path, "wb") as buffer:
-            buffer.write(await image.read())
+    # 이미지 다운로드
+    generated_id = str(uuid4())
+    image_path = f"/tmp/{generated_id}_original.png"
+    download_image_from_url(image_url, image_path)
 
-        # S3 버킷에 업로드
-        bucket = 'jurassic-park'
-        key = str(uuid4()) + '.jpg'
-        file_url = f"https://{bucket}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/{key}"
-        await upload_file_to_s3(image_path, key)
 
-        # 실행 결과 확인
-        return {"result": file_url}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Error: {e}')
+    # 이미지 생성 및 프롬프트 반환
+    modified_prompt = await make_image(image_path, prompt, f"{generated_id}.png", False)
 
-@app.post("generate-background")
-async def generate_background(
-    image: UploadFile = File(...),
-    prompt: str = Form(...),
-    corpId: int = Form(...),
-    type: str = Form(...)
-):
-    AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION")
-    try:
-        # 이미지 파일 저장 경로 설정
-        image_path = f"/tmp/{image.filename}"
+    # 광고 미리보기 업로드
+    preview_url = await post_advertise_preview(f"/home/metaai1/jinjoo_work/unicorn/tmp/{generated_id}.png", f"{generated_id}.png", ad_id)
 
-        # 이미지 파일을 저장
-        with open(image_path, "wb") as buffer:
-            buffer.write(await image.read())
+    # 비디오 생성
+    await make_video(f"/home/metaai1/jinjoo_work/unicorn/tmp/{generated_id}.png", modified_prompt, f"{generated_id}.mp4", False)
 
-        # S3 버킷에 업로드
-        bucket = 'jurassic-park'
-        key = str(uuid4()) + '.jpg'
-        file_url = f"https://{bucket}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/{key}"
-        await upload_file_to_s3(image_path, key)
 
-        # 실행 결과 확인
-        return {"result": file_url}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Error: {e}')
+    # 비디오 업로드
+    video_url = await post_advertise_video(f"/home/metaai1/jinjoo_work/unicorn/tmp/{generated_id}.mp4", f"{generated_id}.mp4", ad_id)
+
+    # 작업 완료
+    return {
+        "result": "광고 생성이 성공적으로 완료되었습니다.",
+        "preview_url": preview_url,
+        "video_url": video_url
+    }
+
+
+    # except Exception as e:
+    #     await send_status_update(generated_id, "Failed")
+    #     logging.error(f"Task {generated_id} failed: {str(e)}")
+    #     return {"task_id": generated_id, "status": "Failed", "error": str(e)}
